@@ -30,6 +30,7 @@ if (!fs.existsSync(path.join(OUTPUT_DIR, 'js'))) fs.mkdirSync(path.join(OUTPUT_D
 const postTemplate = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
 const indexTemplate = fs.readFileSync(INDEX_TEMPLATE_PATH, 'utf-8');
 const blogTemplate = fs.readFileSync(BLOG_TEMPLATE_PATH, 'utf-8');
+const labTemplate = fs.readFileSync(path.join(__dirname, 'templates', 'lab.html'), 'utf-8');
 
 // Copy CSS/JS
 fs.copyFileSync(path.join(__dirname, 'css', 'style.css'), path.join(OUTPUT_DIR, 'css', 'style.css'));
@@ -91,5 +92,8 @@ const allPostsHtml = posts.map(post => `
 
 const blogHtml = blogTemplate.replace('{{posts}}', allPostsHtml);
 fs.writeFileSync(path.join(OUTPUT_DIR, 'blog.html'), blogHtml);
+
+// Generate Lab Page
+fs.writeFileSync(path.join(OUTPUT_DIR, 'lab.html'), labTemplate);
 
 console.log(`Deployed ${posts.length} transmissions.`);
