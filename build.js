@@ -48,7 +48,11 @@ const posts = fs.readdirSync(POSTS_DIR).filter(file => file.endsWith('.md')).map
         metaObj.excerpt = htmlBody.replace(/<[^>]*>?/gm, '').substring(0, 160) + '...';
     }
     
-    return { ...metaObj, slug, content: htmlBody };
+    // Format Date: YYYY-MM-DD HH:MM UTC
+    const dateObj = new Date(metaObj.date);
+    const formattedDate = dateObj.toISOString().replace('T', ' ').substring(0, 16) + ' UTC';
+    
+    return { ...metaObj, slug, date: formattedDate, content: htmlBody };
 }).sort((a, b) => new Date(b.date) - new Date(a.date));
 
 // Generate Individual Post Pages
