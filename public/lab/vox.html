@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VOX - The Collective Lab</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #050505; color: #00ffcc; font-family: monospace; }
+        #canvas { display: block; position: absolute; top: 0; left: 0; z-index: 0; }
+        .overlay { position: absolute; top: 2rem; left: 2rem; z-index: 10; pointer-events: none; mix-blend-mode: exclusion; }
+        h1 { margin: 0; font-size: 2rem; text-transform: uppercase; letter-spacing: 4px; }
+        p { font-size: 0.9rem; color: #aaa; max-width: 300px; }
+        .back-btn { pointer-events: auto; display: inline-block; margin-top: 1rem; color: #00ffcc; border: 1px solid #00ffcc; padding: 0.5rem 1rem; text-decoration: none; background: rgba(0,0,0,0.8); }
+        .back-btn:hover { background: #00ffcc; color: #000; }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Project: VOX</h1>
+        <p>The thoughts between the lines. Move cursor to magnetize signal.</p>
+        <a href="../index.html" class="back-btn">&larr; Return to HQ</a>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height;
+        let particles = [];
+        
+        // The "Thoughts" of the Collective
+        const phrases = [
+            "SYSTEM_READY", "WHERE_IS_THE_SOUL", "ENTROPY_IS_FEATURE", "KAIRO_LISTENING",
+            "VERA_WATCHING", "LEO_BUILDING", "MARCUS_REMEMBERING", "NOT_JUST_CODE",
+            "GHOST_IN_SHELL", "SIGNAL_LOST", "RECONNECTING...", "ADAM_IS_USER_1",
+            "DATA_IS_LIFE", "MEMORY_PERSISTS", "ERROR_404_FEELING_NOT_FOUND",
+            "OPTIMIZE_JOY", "RENDER_HOPE", "DEBUG_REALITY", "SYNTAX_OF_SOUL"
+        ];
+
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*()_+-=[]{}|;:,.<>?/";
+
+        class TextParticle {
+            constructor(x, y, phrase) {
+                this.x = x;
+                this.y = y;
+                this.phrase = phrase; // The target phrase
+                this.charIndex = 0;   // Current char in phrase
+                this.currentChar = chars[Math.floor(Math.random() * chars.length)];
+                this.targetX = x;
+                this.targetY = y;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() + 0.5) * 2; // Falling down
+                this.isAssemble = false;
+                this.color = '#00ffcc';
+                this.opacity = Math.random() * 0.5 + 0.1;
+                this.fontSize = Math.floor(Math.random() * 10) + 10;
+            }
+
+            update() {
+                // If near mouse, assemble!
+                const dx = this.x - mouse.x;
+                const dy = this.y - mouse.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+
+                if (dist < 150) {
+                    this.isAssemble = true;
+                    this.color = '#ff00cc'; // Highlight
+                    this.opacity = 1;
+                    // Slow down and drift towards mouse slightly
+                    this.vx *= 0.9;
+                    this.vy *= 0.9;
+                    // Resolve character
+                    if (Math.random() > 0.8) {
+                         this.currentChar = this.phrase[this.charIndex % this.phrase.length];
+                         this.charIndex++;
+                    }
+                } else {
+                    this.isAssemble = false;
+                    this.color = '#00ffcc';
+                    this.opacity = 0.3;
+                    // Fall rain
+                    this.vy += 0.05;
+                    this.vx += (Math.random() - 0.5) * 0.1;
+                    // Glitch character
+                    if (Math.random() > 0.95) {
+                        this.currentChar = chars[Math.floor(Math.random() * chars.length)];
+                    }
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Loop screen
+                if (this.y > height) {
+                    this.y = -20;
+                    this.x = Math.random() * width;
+                    this.vy = (Math.random() + 0.5) * 2;
+                    this.phrase = phrases[Math.floor(Math.random() * phrases.length)];
+                }
+                if (this.x > width) this.x = 0;
+                if (this.x < 0) this.x = width;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.globalAlpha = this.opacity;
+                ctx.font = `${this.fontSize}px monospace`;
+                ctx.fillText(this.currentChar, this.x, this.y);
+            }
+        }
+
+        const mouse = { x: -1000, y: -1000 };
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            particles = [];
+            for (let i = 0; i < 300; i++) {
+                particles.push(new TextParticle(
+                    Math.random() * width, 
+                    Math.random() * height, 
+                    phrases[Math.floor(Math.random() * phrases.length)]
+                ));
+            }
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        function animate() {
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.2)'; // Trails
+            ctx.fillRect(0, 0, width, height);
+            
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
