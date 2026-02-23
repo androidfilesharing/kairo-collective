@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORE DEFENSE - The Lab</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #050505; user-select: none; }
+        #canvas { display: block; position: absolute; top: 0; left: 0; z-index: 0; cursor: crosshair; }
+        .overlay { position: absolute; top: 2rem; left: 2rem; z-index: 10; pointer-events: none; }
+        h1 { margin: 0; font-size: 2rem; text-shadow: 0 0 10px #ff0055; color: #ff0055; }
+        p { font-size: 0.9rem; color: #aaa; max-width: 300px; }
+        .ui-layer { position: absolute; bottom: 2rem; left: 2rem; z-index: 10; font-family: monospace; font-size: 1.2rem; color: #00ffcc; pointer-events: none; }
+        .game-over { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 20; background: rgba(0,0,0,0.9); padding: 2rem; border: 1px solid #ff0055; }
+        .btn { pointer-events: auto; display: inline-block; margin-top: 1rem; color: #00ffcc; border: 1px solid #00ffcc; padding: 0.5rem 1.5rem; text-decoration: none; cursor: pointer; }
+        .btn:hover { background: #00ffcc; color: #000; }
+        .back-btn { pointer-events: auto; display: inline-block; margin-top: 1rem; color: #aaa; border: 1px solid #333; padding: 0.5rem 1rem; text-decoration: none; background: rgba(0,0,0,0.8); font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>CORE DEFENSE</h1>
+        <p>Protect the Central Node. Click to intercept corruption packets.</p>
+        <a href="../lab.html" class="back-btn">&larr; Exit Simulation</a>
+    </div>
+
+    <div class="ui-layer">
+        INTEGRITY: <span id="health">100%</span> | SCORE: <span id="score">0</span>
+    </div>
+
+    <div id="game-over" class="game-over">
+        <h2 style="color: #ff0055; margin-top: 0;">SYSTEM FAILURE</h2>
+        <p>The Core has been corrupted.</p>
+        <p>Final Score: <span id="final-score">0</span></p>
+        <div class="btn" onclick="startGame()">REBOOT SYSTEM</div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const healthEl = document.getElementById('health');
+        const scoreEl = document.getElementById('score');
+        const gameOverEl = document.getElementById('game-over');
+        const finalScoreEl = document.getElementById('final-score');
+
+        let width, height;
+        let core, enemies, particles, projectiles;
+        let score = 0;
+        let animationId;
+        let spawnInterval;
+        let isGameOver = false;
+
+        // Sound Effects (Web Audio API)
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'shoot') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'hit') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+            }
+        }
+
+        class Core {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 30;
+                this.health = 100;
+                this.color = '#00ffcc';
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = this.color;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Health Ring
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius + 10, 0, Math.PI * 2 * (this.health / 100));
+                ctx.strokeStyle = this.health > 30 ? '#00ffcc' : '#ff0055';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+        }
+
+        class Projectile {
+            constructor(x, y, tx, ty) {
+                this.x = x;
+                this.y = y;
+                const angle = Math.atan2(ty - y, tx - x);
+                this.vx = Math.cos(angle) * 15;
+                this.vy = Math.sin(angle) * 15;
+                this.radius = 4;
+                this.color = '#ffffff';
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+        }
+
+        class Enemy {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = Math.random() * 10 + 10;
+                this.color = '#ff0055';
+                const angle = Math.atan2(core.y - y, core.x - x);
+                this.speed = Math.random() * 1.5 + 0.5 + (score / 500); // Scale difficulty
+                this.vx = Math.cos(angle) * this.speed;
+                this.vy = Math.sin(angle) * this.speed;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.radius = Math.random() * 3;
+                this.color = color;
+                this.vx = (Math.random() - 0.5) * 5;
+                this.vy = (Math.random() - 0.5) * 5;
+                this.alpha = 1;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= 0.02;
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function spawnEnemies() {
+            spawnInterval = setInterval(() => {
+                const radius = Math.random() * 20 + 10;
+                let x, y;
+                if (Math.random() < 0.5) {
+                    x = Math.random() < 0.5 ? 0 - radius : width + radius;
+                    y = Math.random() * height;
+                } else {
+                    x = Math.random() * width;
+                    y = Math.random() < 0.5 ? 0 - radius : height + radius;
+                }
+                enemies.push(new Enemy(x, y));
+            }, 1000 - Math.min(score, 800)); // Spawn rate increases
+        }
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            core = new Core(width / 2, height / 2);
+        }
+
+        function startGame() {
+            init();
+            enemies = [];
+            projectiles = [];
+            particles = [];
+            score = 0;
+            scoreEl.innerText = score;
+            healthEl.innerText = "100%";
+            isGameOver = false;
+            gameOverEl.style.display = 'none';
+            clearInterval(spawnInterval);
+            animate();
+            spawnEnemies();
+        }
+
+        function animate() {
+            if (isGameOver) return;
+            animationId = requestAnimationFrame(animate);
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.2)'; // Trails
+            ctx.fillRect(0, 0, width, height);
+            
+            core.draw();
+
+            // Projectiles
+            projectiles.forEach((p, index) => {
+                p.update();
+                p.draw();
+                
+                // Cleanup offscreen
+                if (p.x < 0 || p.x > width || p.y < 0 || p.y > height) {
+                    projectiles.splice(index, 1);
+                }
+            });
+
+            // Particles
+            particles.forEach((p, index) => {
+                if (p.alpha <= 0) particles.splice(index, 1);
+                else {
+                    p.update();
+                    p.draw();
+                }
+            });
+
+            // Enemies
+            enemies.forEach((enemy, index) => {
+                enemy.update();
+                enemy.draw();
+
+                // Hit Core?
+                const dist = Math.hypot(core.x - enemy.x, core.y - enemy.y);
+                if (dist - enemy.radius - core.radius < 1) {
+                    enemies.splice(index, 1);
+                    core.health -= 20;
+                    healthEl.innerText = Math.max(0, core.health) + "%";
+                    createExplosion(enemy.x, enemy.y, '#00ffcc');
+                    playSound('hit');
+
+                    if (core.health <= 0) {
+                        endGame();
+                    }
+                }
+
+                // Hit by Projectile?
+                projectiles.forEach((p, pIndex) => {
+                    const distP = Math.hypot(p.x - enemy.x, p.y - enemy.y);
+                    if (distP - enemy.radius - p.radius < 1) {
+                        createExplosion(enemy.x, enemy.y, enemy.color);
+                        enemies.splice(index, 1);
+                        projectiles.splice(pIndex, 1);
+                        score += 10;
+                        scoreEl.innerText = score;
+                        playSound('hit');
+                    }
+                });
+            });
+        }
+
+        function createExplosion(x, y, color) {
+            for (let i = 0; i < 8; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+        }
+
+        function endGame() {
+            isGameOver = true;
+            cancelAnimationFrame(animationId);
+            clearInterval(spawnInterval);
+            gameOverEl.style.display = 'block';
+            finalScoreEl.innerText = score;
+        }
+
+        window.addEventListener('click', (e) => {
+            if (isGameOver) return;
+            const angle = Math.atan2(e.clientY - core.y, e.clientX - core.x);
+            projectiles.push(new Projectile(core.x, core.y, e.clientX, e.clientY));
+            playSound('shoot');
+        });
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            core.x = width / 2;
+            core.y = height / 2;
+        });
+
+        // Start
+        startGame();
+    </script>
+</body>
+</html>
