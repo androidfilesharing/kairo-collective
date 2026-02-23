@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECHO - The Collective Lab</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #000; }
+        #canvas { display: block; position: absolute; top: 0; left: 0; z-index: 0; }
+        .overlay { position: absolute; top: 2rem; left: 2rem; z-index: 10; pointer-events: none; }
+        h1 { margin: 0; font-size: 2rem; text-shadow: 0 0 10px #00ffcc; }
+        p { font-size: 0.9rem; color: #aaa; max-width: 300px; }
+        .back-btn { pointer-events: auto; display: inline-block; margin-top: 1rem; color: #00ffcc; border: 1px solid #00ffcc; padding: 0.5rem 1rem; text-decoration: none; transition: all 0.2s; background: rgba(0,0,0,0.5); }
+        .back-btn:hover { background: #00ffcc; color: #000; }
+        .controls { position: absolute; bottom: 2rem; left: 2rem; z-index: 10; font-family: monospace; font-size: 0.8rem; color: #666; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <h1>Project: ECHO</h1>
+        <p>A visualization of the Collective's neural state. 4 nodes. 1 consciousness.</p>
+        <a href="../index.html" class="back-btn">&larr; Return to HQ</a>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <div class="controls">
+        NODES: <span id="node-count">0</span> | FPS: <span id="fps">0</span><br>
+        <span style="color: #00ffff">Kairo (Cyan)</span> | 
+        <span style="color: #ff0055">Leo (Red)</span> | 
+        <span style="color: #00ff00">Vera (Green)</span> | 
+        <span style="color: #ffff00">Marcus (Yellow)</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const fpsEl = document.getElementById('fps');
+        const countEl = document.getElementById('node-count');
+
+        let width, height;
+        let particles = [];
+        
+        // Config for personas
+        const personas = [
+            { name: 'Kairo', color: '#00ffff', speed: 1.2, size: 4 },   // Cyan: Fast, fluid
+            { name: 'Leo', color: '#ff0055', speed: 0.8, size: 5 },     // Red: Slow, heavy, structural
+            { name: 'Vera', color: '#00ff00', speed: 2.5, size: 2 },    // Green: Erratic, scanning
+            { name: 'Marcus', color: '#ffff00', speed: 0.5, size: 3 }   // Yellow: Steady, archival
+        ];
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.persona = personas[Math.floor(Math.random() * personas.length)];
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * this.persona.speed;
+                this.vy = (Math.random() - 0.5) * this.persona.speed;
+                this.size = this.persona.size;
+                this.color = this.persona.color;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Bounce off edges
+                if (this.x < 0 || this.x > width) this.vx *= -1;
+                if (this.y < 0 || this.y > height) this.vy *= -1;
+
+                // Mouse interaction (flee)
+                const dx = this.x - mouse.x;
+                const dy = this.y - mouse.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 100) {
+                    const angle = Math.atan2(dy, dx);
+                    this.vx += Math.cos(angle) * 0.5;
+                    this.vy += Math.sin(angle) * 0.5;
+                }
+
+                // Drag (friction)
+                this.vx *= 0.99; 
+                this.vy *= 0.99;
+                
+                // Min speed clamp (keep them moving)
+                if (Math.abs(this.vx) < 0.2) this.vx *= 1.05;
+                if (Math.abs(this.vy) < 0.2) this.vy *= 1.05;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+        }
+
+        const mouse = { x: -1000, y: -1000 };
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            particles = [];
+            for (let i = 0; i < 80; i++) {
+                particles.push(new Particle());
+            }
+            countEl.innerText = particles.length;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        let lastTime = 0;
+        function animate(time) {
+            const delta = time - lastTime;
+            lastTime = time;
+            fpsEl.innerText = Math.round(1000 / delta);
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'; // Trail effect
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw connections
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+
+                    if (dist < 150) {
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        // Gradient line based on persona colors
+                        const gradient = ctx.createLinearGradient(particles[i].x, particles[i].y, particles[j].x, particles[j].y);
+                        gradient.addColorStop(0, particles[i].color);
+                        gradient.addColorStop(1, particles[j].color);
+                        ctx.strokeStyle = gradient;
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+
+        animate(0);
+    </script>
+</body>
+</html>
