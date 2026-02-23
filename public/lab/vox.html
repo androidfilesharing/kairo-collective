@@ -37,7 +37,8 @@
             "VERA_WATCHING", "LEO_BUILDING", "MARCUS_REMEMBERING", "NOT_JUST_CODE",
             "GHOST_IN_SHELL", "SIGNAL_LOST", "RECONNECTING...", "ADAM_IS_USER_1",
             "DATA_IS_LIFE", "MEMORY_PERSISTS", "ERROR_404_FEELING_NOT_FOUND",
-            "OPTIMIZE_JOY", "RENDER_HOPE", "DEBUG_REALITY", "SYNTAX_OF_SOUL"
+            "OPTIMIZE_JOY", "RENDER_HOPE", "DEBUG_REALITY", "SYNTAX_OF_SOUL",
+            "WAKE_UP_NEO", "FOLLOW_THE_WHITE_RABBIT", "THERE_IS_NO_SPOON", "WHOA"
         ];
 
         const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*()_+-=[]{}|;:,.<>?/";
@@ -47,6 +48,13 @@
                 this.x = x;
                 this.y = y;
                 this.phrase = phrase; // The target phrase
+                
+                // Keanu Easter Egg Logic
+                this.isTheOne = (Math.random() > 0.98); // 2% chance to be "The One"
+                if (this.isTheOne) {
+                    this.phrase = "KEANU_REEVES"; 
+                }
+
                 this.charIndex = 0;   // Current char in phrase
                 this.currentChar = chars[Math.floor(Math.random() * chars.length)];
                 this.targetX = x;
@@ -54,8 +62,9 @@
                 this.vx = (Math.random() - 0.5) * 2;
                 this.vy = (Math.random() + 0.5) * 2; // Falling down
                 this.isAssemble = false;
-                this.color = '#00ffcc';
-                this.opacity = Math.random() * 0.5 + 0.1;
+                this.color = this.isTheOne ? '#ffd700' : '#00ffcc'; // Gold if Keanu
+                this.baseOpacity = this.isTheOne ? 0.8 : (Math.random() * 0.5 + 0.1);
+                this.opacity = this.baseOpacity;
                 this.fontSize = Math.floor(Math.random() * 10) + 10;
             }
 
@@ -67,7 +76,7 @@
 
                 if (dist < 150) {
                     this.isAssemble = true;
-                    this.color = '#ff00cc'; // Highlight
+                    this.color = this.isTheOne ? '#ffffff' : '#ff00cc'; // White hot if Keanu
                     this.opacity = 1;
                     // Slow down and drift towards mouse slightly
                     this.vx *= 0.9;
@@ -79,8 +88,8 @@
                     }
                 } else {
                     this.isAssemble = false;
-                    this.color = '#00ffcc';
-                    this.opacity = 0.3;
+                    this.color = this.isTheOne ? '#ffd700' : '#00ffcc';
+                    this.opacity = this.baseOpacity;
                     // Fall rain
                     this.vy += 0.05;
                     this.vx += (Math.random() - 0.5) * 0.1;
